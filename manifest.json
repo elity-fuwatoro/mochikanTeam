@@ -1,6 +1,7 @@
 {
+  "id": "mochi_team",
   "name": "もちかん - 担当患者管理",
-  "short_name": "もちかん",
+  "short_name": "もちかんチーム",
   "description": "病棟・外来の担当患者情報をオフラインでスマートに管理する医療従事者向けPWAアプリ",
   "start_url": "./index.html",
   "display": "standalone",
