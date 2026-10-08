@@ -145,6 +145,39 @@ function calculateBowelDaysAgo(lastBowelDate, todayStrOrMs) {
   }
 }
 
+/**
+ * 次回診察日までの残り日数計算（外来用）
+ * @param {string} nextVisitDate "YYYY-MM-DD"
+ * @param {string|number} todayStrOrMs "YYYY-MM-DD" 文字列またはミリ秒
+ */
+function calculateVisitDays(nextVisitDate, todayStrOrMs) {
+  if (!nextVisitDate) return null;
+  const d1 = new Date(nextVisitDate + "T00:00:00").getTime();
+  const d2 =
+    typeof todayStrOrMs === "number"
+      ? todayStrOrMs
+      : new Date((todayStrOrMs || getTodayString()) + "T00:00:00").getTime();
+  const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return { text: "今日", days: 0, cls: "visit-badge-today" };
+  } else if (diffDays === 1) {
+    return { text: "あと1日", days: 1, cls: "visit-badge-soon" };
+  } else if (diffDays > 1) {
+    return {
+      text: `あと${diffDays}日`,
+      days: diffDays,
+      cls: diffDays <= 7 ? "visit-badge-soon" : "visit-badge-normal",
+    };
+  } else {
+    return {
+      text: `${Math.abs(diffDays)}日超過`,
+      days: diffDays,
+      cls: "visit-badge-overdue",
+    };
+  }
+}
+
 // ==========================================
 // ソートロジック
 // ==========================================
@@ -413,6 +446,10 @@ function renderPatientCard(patient, tab, today, todayMidnightMs) {
     patient.lastBowelDate,
     todayMidnightMs || today,
   );
+  const visitInfo =
+    tab === "outpatient" && patient.nextVisitDate
+      ? calculateVisitDays(patient.nextVisitDate, todayMidnightMs || today)
+      : null;
 
   // 性別・年齢の表示
   let genderText = "";
@@ -551,7 +588,11 @@ function renderPatientCard(patient, tab, today, todayMidnightMs) {
           <div class="outpatient-visit-row">
             <span class="visit-label"><span class="icon-inline">${getIcon("calendar")}</span>次回診察日:</span>
             <button type="button" class="btn-visit-trigger" data-id="${patient.id}" title="タップで次回診察日を更新">
-              ${patient.nextVisitDate ? formatDateDisplay(patient.nextVisitDate) : "未定 (設定する)"}
+              ${
+                patient.nextVisitDate
+                  ? `${formatDateDisplay(patient.nextVisitDate)}${visitInfo ? ` <span class="visit-days-tag ${visitInfo.cls}">${visitInfo.text}</span>` : ""}`
+                  : "未定 (設定する)"
+              }
             </button>
           </div>
         </section>
@@ -1070,10 +1111,12 @@ function openVisitModal(patientId) {
   const currentSpan = document.getElementById("visit-current-display");
   const inputDate = document.getElementById("visit-next-date-input");
 
+  const visitInfo = calculateVisitDays(patient.nextVisitDate, getTodayString());
+
   if (title) title.textContent = `次回診察日の更新: ${patient.name}`;
   if (currentSpan) {
     currentSpan.textContent = patient.nextVisitDate
-      ? formatDateDisplay(patient.nextVisitDate)
+      ? `${formatDateDisplay(patient.nextVisitDate)}${visitInfo ? ` (${visitInfo.text})` : ""}`
       : "未定";
   }
   if (inputDate) {
