@@ -1,0 +1,1260 @@
+/* ==========================================================================
+   もちかん (Mochikan) - 担当患者管理PWA スタイルシート
+   Pixel 10 (Android Chrome) 最適化・モバイルファースト・完全オフライン
+   ========================================================================== */
+
+/* --------------------------------------------------
+   CSS変数 (デザイントークン)
+   -------------------------------------------------- */
+:root {
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --primary-light: #f0fdfa;
+  --primary-border: #99f6e4;
+  --primary-active: #042f2e;
+
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-muted: #f1f5f9;
+  --bg-subtle: #f8fafc;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --border-color: #e2e8f0;
+  --border-focus: #0d9488;
+
+  --color-success: #15803d;
+  --bg-success: #dcfce7;
+  --color-warning: #b45309;
+  --bg-warning: #fef3c7;
+  --color-danger: #b91c1c;
+  --bg-danger: #fee2e2;
+  --color-info: #0369a1;
+  --bg-info: #e0f2fe;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "BIZ UDPGothic", "Meiryo", sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* --------------------------------------------------
+   ベース & リセット
+   -------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* ユーティリティ */
+.font-medium { font-weight: 500; }
+.font-bold { font-weight: 700; }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+.text-highlight { color: #b45309; }
+.mt-3 { margin-top: 12px; }
+
+/* --------------------------------------------------
+   固定上部ヘッダー & タブバー (Sticky Header)
+   -------------------------------------------------- */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  padding-top: var(--safe-top);
+}
+
+/* ヘッダー上段: タイトル & アクション */
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 8px;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.btn-filter:active {
+  transform: scale(0.96);
+}
+
+.btn-filter.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--primary);
+  color: var(--text-inverse);
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(15, 118, 110, 0.25);
+  transition: background-color 0.15s, transform 0.1s;
+  touch-action: manipulation;
+}
+
+.btn-add *, .btn-icon *, .tab-btn *, .btn-filter * {
+  pointer-events: none;
+}
+
+.btn-add:active {
+  background-color: var(--primary-hover);
+  transform: scale(0.97);
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.btn-icon:active {
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+  transform: scale(0.95);
+}
+
+.btn-icon.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ヘッダー下段: 3タブバー */
+.tab-bar {
+  display: flex;
+  background-color: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  padding: 0 4px;
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 4px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tab-btn .tab-icon {
+  display: flex;
+  align-items: center;
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.tab-btn:active {
+  background-color: var(--primary-light);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-muted);
+  color: var(--text-muted);
+}
+
+.tab-btn.active .tab-badge {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+/* 検索バー（折りたたみ制御） */
+.search-container {
+  padding: 6px 14px 8px;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+  overflow: hidden;
+  max-height: 60px;
+  opacity: 1;
+}
+
+.search-container.search-collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-bottom-color: transparent;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon-left {
+  position: absolute;
+  left: 10px;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 32px 0 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-muted);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.search-input:focus {
+  background-color: #ffffff;
+  border-color: var(--border-focus);
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+/* --------------------------------------------------
+   メインコンテンツ & 患者リスト
+   -------------------------------------------------- */
+.main-content {
+  flex: 1;
+  padding: 8px 8px 24px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --------------------------------------------------
+   患者カード (Patient Card) - 高密度・コンパクト仕様
+   -------------------------------------------------- */
+.patient-card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 8px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.patient-card.has-prescription-alert {
+  border-color: #fca5a5;
+  background: linear-gradient(180deg, #fff7f7 0%, #ffffff 40px);
+}
+
+/* カードヘッダー */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card-title-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.room-badge {
+  display: inline-block;
+  background-color: var(--primary);
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.patient-name {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.patient-profile {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-edit-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-muted);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.btn-edit-inline:active {
+  background-color: #cbd5e1;
+  color: var(--text-main);
+}
+
+/* 基礎情報セクション（行数を減らし極力1〜2行でコンパクト表示） */
+.card-compact-info {
+  background-color: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.compact-info-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.info-item-compact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.info-label-compact {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.info-val-compact {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.info-val-compact.bold {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* 日々データ: 完全1行横並びレイアウト (カルテ記載、診察予定、レスキュー、排便、処方) */
+.card-daily-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card-daily-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* 日々データの各要素 */
+.daily-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* ミニチェックボックス（本日診察予定 & カルテ記載） */
+.mini-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  transition: all 0.15s;
+}
+
+.mini-checkbox-label input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.mini-checkmark {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #94a3b8;
+  border-radius: 3px;
+  background-color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.mini-checkbox-label input:checked ~ .mini-checkmark {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.mini-checkmark::after {
+  content: "";
+  display: none;
+  width: 3.5px;
+  height: 7px;
+  border: solid white;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+.mini-checkbox-label input:checked ~ .mini-checkmark::after {
+  display: block;
+}
+
+.mini-checkbox-label.is-exam {
+  color: #0369a1;
+}
+
+.mini-checkbox-label.is-exam.active {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+}
+
+.mini-checkbox-label.is-record.active {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.mini-checkbox-label.is-record.inactive {
+  color: var(--color-danger);
+}
+
+/* 超小型レスキューステッパー */
+.mini-stepper {
+  display: inline-flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+.btn-mini-step {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.btn-mini-step:active {
+  background-color: var(--bg-muted);
+}
+
+.mini-rescue-display {
+  font-size: 11.5px;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+  padding: 0 2px;
+}
+
+.mini-rescue-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: 1px;
+}
+
+/* ミニバッジボタン（排便日・処方日用） */
+.btn-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: #ffffff;
+  color: var(--text-main);
+  border-color: var(--border-color);
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.btn-mini-pill:active {
+  transform: scale(0.95);
+}
+
+.btn-mini-pill.pill-bowel-ok {
+  background-color: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.btn-mini-pill.pill-bowel-warn {
+  background-color: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.btn-mini-pill.pill-bowel-alert {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+  font-weight: 700;
+}
+
+.btn-mini-pill.pill-rx-alert {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+  font-weight: 700;
+}
+
+.btn-mini-pill.pill-rx-ok {
+  background-color: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+/* 外来・終了専用行 */
+.card-outpatient-info,
+.card-discharged-info {
+  background-color: var(--accent-light);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 12.5px;
+}
+
+.outpatient-visit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.visit-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.btn-visit-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #ffffff;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.btn-visit-trigger:active {
+  transform: scale(0.96);
+  background-color: var(--accent-light);
+}
+
+/* メモセクション (使用中薬・備考) */
+.card-memo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  background-color: #ffffff;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 4px;
+}
+
+.memo-block {
+  background-color: var(--bg-subtle);
+  border-radius: 4px;
+  padding: 3px 6px;
+  line-height: 1.35;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
+  border: 1px solid transparent;
+}
+
+.memo-block-clickable {
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.memo-block-clickable:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.memo-block-clickable:active {
+  background-color: #e2e8f0;
+  transform: scale(0.99);
+}
+
+.memo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.memo-content {
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.memo-edit-hint {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-light);
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.memo-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background-color: transparent;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  cursor: pointer;
+  width: fit-content;
+  transition: all 0.15s;
+  margin-top: 1px;
+}
+
+.memo-empty-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+.memo-empty-btn:active {
+  background-color: var(--primary-light);
+  transform: scale(0.98);
+}
+
+/* 編集モーダル内の転帰変更ボタン */
+.status-action-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-status-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex: 1;
+  min-width: 130px;
+}
+
+.btn-status-action:active {
+  background-color: #cbd5e1;
+  transform: scale(0.98);
+}
+
+/* --------------------------------------------------
+   バッジ & アラート
+   -------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-success { background-color: var(--bg-success); color: var(--color-success); }
+.badge-warning { background-color: var(--bg-warning); color: var(--color-warning); }
+.badge-danger { background-color: var(--bg-danger); color: var(--color-danger); }
+.badge-info { background-color: var(--bg-info); color: var(--color-info); }
+.badge-gray { background-color: var(--bg-muted); color: var(--text-muted); }
+
+.badge-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+  transition: transform 0.1s;
+}
+
+.badge-button:active {
+  transform: scale(0.96);
+}
+
+.badge-date {
+  background-color: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.badge-alert {
+  background-color: var(--bg-danger);
+  color: var(--color-danger);
+  border-color: #fca5a5;
+  font-weight: 700;
+}
+
+.alert-tag {
+  background-color: var(--color-danger);
+  color: #ffffff;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1); box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2); }
+  100% { transform: scale(1); }
+}
+
+.pulse-animation {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.icon-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --------------------------------------------------
+   空状態表示 (Empty State)
+   -------------------------------------------------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--text-light);
+}
+
+.empty-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.empty-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  font-size: 13.5px;
+  max-width: 300px;
+}
+
+/* --------------------------------------------------
+   モーダル & ダイアログ (Modal Dialogs)
+   -------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end; /* モバイルでは下部スライドアップ */
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-sheet {
+  background-color: #ffffff;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  padding-bottom: var(--safe-bottom);
+}
+
+.modal-overlay.active .modal-sheet {
+  transform: translateY(0);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  background-color: #ffffff;
+}
+
+/* --------------------------------------------------
+   フォーム要素
+   -------------------------------------------------- */
+.form-section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary);
+  border-left: 3px solid var(--primary);
+  padding-left: 8px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.form-label .required {
+  color: var(--color-danger);
+  margin-left: 2px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  font-size: 14.5px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.4;
+}
+
+/* 処方日更新用クイックボタン群 */
+.quick-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.btn-quick-days {
+  padding: 8px 12px;
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-quick-days:active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ボタンスタイル */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.btn-primary:active {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:active {
+  background-color: #e2e8f0;
+}
+
+.btn-danger {
+  background-color: var(--bg-danger);
+  color: var(--color-danger);
+  border: 1px solid #fca5a5;
+}
+
+.btn-danger:active {
+  background-color: #fecaca;
+}
+
+/* --------------------------------------------------
+   設定モーダル内スタイル
+   -------------------------------------------------- */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.settings-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.settings-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* --------------------------------------------------
+   トースト通知
+   -------------------------------------------------- */
+#toast-container {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  width: 90%;
+  max-width: 400px;
+}
+
+.toast {
+  padding: 10px 16px;
+  border-radius: var(--radius-full);
+  background-color: #1e293b;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  background-color: #065f46;
+}
+
+.toast-info {
+  background-color: #1e293b;
+}
+
+.toast-danger {
+  background-color: #991b1b;
+}
