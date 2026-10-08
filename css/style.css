@@ -742,6 +742,41 @@ button, input, select, textarea {
   background-color: var(--accent-light);
 }
 
+.visit-days-tag {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  margin-left: 2px;
+  letter-spacing: 0.01em;
+}
+
+.visit-days-tag.visit-badge-today {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.visit-days-tag.visit-badge-soon {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.visit-days-tag.visit-badge-normal {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.visit-days-tag.visit-badge-overdue {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
 /* メモセクション (使用中薬・備考) */
 .card-memo-section {
   display: flex;
