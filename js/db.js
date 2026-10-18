@@ -196,17 +196,22 @@ class PatientDB {
    * @returns {Promise<{resetOccurred: boolean, count: number}>}
    */
   async checkAndPerformDailyReset(todayStr) {
+    if (this._lastCheckedDate === todayStr) {
+      return { resetOccurred: false, count: 0 };
+    }
     await this.init();
     const lastOpenDate = await this.getSetting('lastAppOpenDate', null);
 
     // 同一日の場合は何もしない
     if (lastOpenDate === todayStr) {
+      this._lastCheckedDate = todayStr;
       return { resetOccurred: false, count: 0 };
     }
 
     // 初回起動（lastOpenDateがnull）の場合は、本日の日付を記録してリセットは実行しない
     if (!lastOpenDate) {
       await this.setSetting('lastAppOpenDate', todayStr);
+      this._lastCheckedDate = todayStr;
       return { resetOccurred: false, count: 0 };
     }
 
@@ -234,6 +239,7 @@ class PatientDB {
     });
 
     await this.setSetting('lastAppOpenDate', todayStr);
+    this._lastCheckedDate = todayStr;
     return { resetOccurred: true, count: resetCount };
   }
 
