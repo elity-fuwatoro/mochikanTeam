@@ -11,6 +11,7 @@ const state = {
   filterQuery: "",
   filterOnlyMy: false,
   filterOnlyExam: false,
+  filterInvert: false, // 検索・フィルター結果の反転フラグ
   editingPatient: null,
   prescriptionModalPatient: null,
   bowelModalPatient: null,
@@ -48,23 +49,45 @@ function getIcon(name) {
 }
 
 // ==========================================
-// 日付ヘルパー関数
+// 日付ヘルパー関数（キャッシュ対応で極小オーバーヘッド）
 // ==========================================
+const MS_PER_DAY = 86400000; // 1000 * 60 * 60 * 24
+
+let _cachedTodayStr = "";
+let _cachedTodayMidnightMs = 0;
+let _cachedTodayExpiry = 0;
+
 function getTodayString() {
-  const d = new Date();
+  const now = Date.now();
+  if (now < _cachedTodayExpiry && _cachedTodayStr) {
+    return _cachedTodayStr;
+  }
+  const d = new Date(now);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  _cachedTodayStr = `${year}-${month}-${day}`;
+
+  const midnight = new Date(year, d.getMonth(), d.getDate());
+  _cachedTodayMidnightMs = midnight.getTime();
+  midnight.setDate(midnight.getDate() + 1);
+  _cachedTodayExpiry = midnight.getTime();
+
+  return _cachedTodayStr;
+}
+
+function getTodayMidnightMs() {
+  getTodayString();
+  return _cachedTodayMidnightMs;
 }
 
 function formatDateDisplay(dateStr) {
   if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length === 3) {
-    return `${Number(parts[1])}/${Number(parts[2])}`;
+  if (dateStr.length === 10 && dateStr[4] === "-" && dateStr[7] === "-") {
+    return `${parseInt(dateStr.slice(5, 7), 10)}/${parseInt(dateStr.slice(8, 10), 10)}`;
   }
-  return dateStr;
+  const parts = dateStr.split("-");
+  return parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : dateStr;
 }
 
 function addDaysToDate(baseDateStr, days) {
@@ -80,22 +103,83 @@ function addDaysToDate(baseDateStr, days) {
 }
 
 /**
- * 高速全文検索用の正規化インデックス文字列を生成
+ * 検索照合用の生テキスト文字列を生成（大文字小文字を保持）
+ */
+function buildPatientSearchText(p) {
+  return `${p.name || ""} ${p.room || ""} ${p.diagnosis || ""} ${p.doctorInCharge || ""} ${p.attendingDoctor || ""} ${p.notes || ""} ${p.medications || ""} ${p.liverFunction || ""} ${p.renalFunction || ""}`;
+}
+
+/**
+ * 高速全文検索用の正規化インデックス文字列を生成（小文字化）
  */
 function buildPatientSearchIndex(p) {
-  return [
-    p.name || "",
-    p.room || "",
-    p.diagnosis || "",
-    p.doctorInCharge || "",
-    p.attendingDoctor || "",
-    p.notes || "",
-    p.medications || "",
-    p.liverFunction || "",
-    p.renalFunction || "",
-  ]
-    .join(" ")
-    .toLowerCase();
+  return buildPatientSearchText(p).toLowerCase();
+}
+
+/**
+ * 患者の検索インデックスをインプレースで更新
+ */
+function refreshPatientSearchIndex(p) {
+  p._searchTarget = buildPatientSearchText(p);
+  p._searchIndex = p._searchTarget.toLowerCase();
+}
+
+/**
+ * 検索クエリから正規表現またはキーワードマッチャーを生成
+ */
+function createSearchMatcher(query) {
+  const trimmed = (query || "").trim();
+  if (!trimmed) return null;
+
+  // 1. /pattern/flags 形式の正規表現リテラル（例: /A|自分/, /A|自分/i）
+  const slashMatch = trimmed.match(/^\/(.+)\/([a-z]*)$/i);
+  if (slashMatch) {
+    try {
+      const pattern = slashMatch[1];
+      let flags = slashMatch[2] || "";
+      if (!flags.includes("i")) flags += "i";
+      const regex = new RegExp(pattern, flags);
+      return (target) => regex.test(target);
+    } catch (e) {
+      console.warn("無効な正規表現リテラル:", e);
+    }
+  }
+
+  // 2. スラッシュなしだが正規表現メタ文字を含む場合
+  if (/[|\\^$*+?()[\]{}]/.test(trimmed)) {
+    try {
+      const regex = new RegExp(trimmed, "i");
+      return (target) => regex.test(target);
+    } catch (e) {
+      // 構文エラー時はフォールバック
+    }
+  }
+
+  // 3. 通常のスペース区切りキーワードAND検索
+  const keywords = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+  return (target) => {
+    const lower = target.toLowerCase();
+    return keywords.every((kw) => lower.includes(kw));
+  };
+}
+
+// 検索マッチャーのキャッシュ
+let _cachedQuery = null;
+let _cachedMatcher = null;
+
+function getSearchMatcher(query) {
+  const trimmed = (query || "").trim();
+  if (!trimmed) {
+    _cachedQuery = "";
+    _cachedMatcher = null;
+    return null;
+  }
+  if (trimmed === _cachedQuery) {
+    return _cachedMatcher;
+  }
+  _cachedQuery = trimmed;
+  _cachedMatcher = createSearchMatcher(trimmed);
+  return _cachedMatcher;
 }
 
 /**
@@ -114,110 +198,90 @@ function debounce(fn, delay = 120) {
 
 /**
  * 最終排便日からの経過日数計算
- * @param {string} lastBowelDate
- * @param {string|number} todayStrOrMs "YYYY-MM-DD" 文字列またはミリ秒
  */
-function calculateBowelDaysAgo(lastBowelDate, todayStrOrMs) {
+function calculateBowelDaysAgo(lastBowelDate, todayMidnightMs) {
   if (!lastBowelDate) {
     return { text: "未入力", cls: "badge-gray", days: null };
   }
-  const d1 = new Date(lastBowelDate + "T00:00:00").getTime();
-  const d2 =
-    typeof todayStrOrMs === "number"
-      ? todayStrOrMs
-      : new Date((todayStrOrMs || getTodayString()) + "T00:00:00").getTime();
-  const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return { text: "今日", cls: "badge-success", days: 0 };
-  } else if (diffDays === 1) {
-    return { text: "1日前", cls: "badge-info", days: 1 };
-  } else if (diffDays === 2) {
-    return { text: "2日前", cls: "badge-warning", days: 2 };
-  } else if (diffDays >= 3) {
-    return {
-      text: `${diffDays}日前(?)`,
-      cls: "badge-danger",
-      days: diffDays,
-    };
-  } else {
-    return { text: "未来日", cls: "badge-gray", days: diffDays };
+  const bowelMs = Date.parse(lastBowelDate + "T00:00:00");
+  if (isNaN(bowelMs)) {
+    return { text: "未入力", cls: "badge-gray", days: null };
   }
+  const diffDays = Math.floor((todayMidnightMs - bowelMs) / MS_PER_DAY);
+
+  if (diffDays === 0) return { text: "今日", cls: "badge-success", days: 0 };
+  if (diffDays === 1) return { text: "1日前", cls: "badge-info", days: 1 };
+  if (diffDays === 2) return { text: "2日前", cls: "badge-warning", days: 2 };
+  if (diffDays >= 3) return { text: `${diffDays}日前(?)`, cls: "badge-danger", days: diffDays };
+  return { text: "未来日", cls: "badge-gray", days: diffDays };
 }
 
 /**
  * 次回診察日までの残り日数計算（外来用）
- * @param {string} nextVisitDate "YYYY-MM-DD"
- * @param {string|number} todayStrOrMs "YYYY-MM-DD" 文字列またはミリ秒
  */
-function calculateVisitDays(nextVisitDate, todayStrOrMs) {
+function calculateVisitDays(nextVisitDate, todayMidnightMs) {
   if (!nextVisitDate) return null;
-  const d1 = new Date(nextVisitDate + "T00:00:00").getTime();
-  const d2 =
-    typeof todayStrOrMs === "number"
-      ? todayStrOrMs
-      : new Date((todayStrOrMs || getTodayString()) + "T00:00:00").getTime();
-  const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
+  const visitMs = Date.parse(nextVisitDate + "T00:00:00");
+  if (isNaN(visitMs)) return null;
+  const diffDays = Math.round((visitMs - todayMidnightMs) / MS_PER_DAY);
 
-  if (diffDays === 0) {
-    return { text: "今日", days: 0, cls: "visit-badge-today" };
-  } else if (diffDays === 1) {
-    return { text: "あと1日", days: 1, cls: "visit-badge-soon" };
-  } else if (diffDays > 1) {
+  if (diffDays === 0) return { text: "今日", days: 0, cls: "visit-badge-today" };
+  if (diffDays === 1) return { text: "あと1日", days: 1, cls: "visit-badge-soon" };
+  if (diffDays > 1) {
     return {
       text: `あと${diffDays}日`,
       days: diffDays,
       cls: diffDays <= 7 ? "visit-badge-soon" : "visit-badge-normal",
     };
-  } else {
-    return {
-      text: `${Math.abs(diffDays)}日超過`,
-      days: diffDays,
-      cls: "visit-badge-overdue",
-    };
   }
+  return {
+    text: `${Math.abs(diffDays)}日超過`,
+    days: diffDays,
+    cls: "visit-badge-overdue",
+  };
 }
 
 // ==========================================
-// ソートロジック
+// ソートロジック（インプレースかつ高速文字列比較）
 // ==========================================
 const roomCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base",
 });
+const nameCollator = new Intl.Collator("ja", { sensitivity: "base" });
 
 function sortPatients(list, tab) {
-  return [...list].sort((a, b) => {
+  return list.sort((a, b) => {
     if (tab === "inpatient") {
-      // 部屋番号の自然順ソート（102A, 102B, 201 など）
-      const roomA = (a.room || "").trim();
-      const roomB = (b.room || "").trim();
-      if (!roomA && !roomB) return (a.name || "").localeCompare(b.name || "");
-      if (!roomA) return 1;
-      if (!roomB) return -1;
-      const roomDiff = roomCollator.compare(roomA, roomB);
-      if (roomDiff !== 0) return roomDiff;
-      return (a.name || "").localeCompare(b.name || "");
-    } else if (tab === "outpatient") {
-      // 次回診察日の昇順（近い順）、未設定は末尾
+      const roomA = a.room || "";
+      const roomB = b.room || "";
+      if (roomA !== roomB) {
+        if (!roomA) return 1;
+        if (!roomB) return -1;
+        const roomDiff = roomCollator.compare(roomA, roomB);
+        if (roomDiff !== 0) return roomDiff;
+      }
+      return nameCollator.compare(a.name || "", b.name || "");
+    }
+    if (tab === "outpatient") {
       const dateA = a.nextVisitDate || "";
       const dateB = b.nextVisitDate || "";
-      if (!dateA && !dateB) return (a.name || "").localeCompare(b.name || "");
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      const dateDiff = dateA.localeCompare(dateB);
-      if (dateDiff !== 0) return dateDiff;
-      return (a.name || "").localeCompare(b.name || "");
-    } else if (tab === "discharged") {
-      // 担当終了日の降順（新しいものが一番上、古いものが一番下）
+      if (dateA !== dateB) {
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA < dateB ? -1 : 1;
+      }
+      return nameCollator.compare(a.name || "", b.name || "");
+    }
+    if (tab === "discharged") {
       const dateA = a.statusChangeDate || a.dischargedDate || a.updatedAt || "";
       const dateB = b.statusChangeDate || b.dischargedDate || b.updatedAt || "";
-      if (!dateA && !dateB) return (a.name || "").localeCompare(b.name || "");
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      const dateDiff = dateB.localeCompare(dateA); // 降順
-      if (dateDiff !== 0) return dateDiff;
-      return (a.name || "").localeCompare(b.name || "");
+      if (dateA !== dateB) {
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateB < dateA ? -1 : 1;
+      }
+      return nameCollator.compare(a.name || "", b.name || "");
     }
     return 0;
   });
@@ -321,12 +385,44 @@ if (document.readyState === "loading") {
 }
 
 /**
+ * 反転表示中の通知バナー生成
+ */
+function renderInvertBanner(count) {
+  return `
+    <div class="filter-invert-banner" role="status">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="invert-badge">反転表示中</span>
+        <span>非表示の患者カード (${count}件) を表示中</span>
+      </div>
+      <button type="button" class="btn-invert-reset" id="btn-reset-invert">解除</button>
+    </div>
+  `;
+}
+
+/**
+ * 検索バー周辺のUI状態（ボタンのアクティブ状態等）を同期
+ */
+function updateSearchControlsUI() {
+  const invertBtn = document.getElementById("btn-filter-invert");
+  if (invertBtn) {
+    invertBtn.classList.toggle("active", !!state.filterInvert);
+  }
+
+  const teamABtn = document.getElementById("btn-search-team-a");
+  if (teamABtn) {
+    const isTeamA = (state.filterQuery || "").trim() === "/A|自分/";
+    teamABtn.classList.toggle("active", isTeamA);
+  }
+}
+
+/**
  * データ読み込みと画面描画
  */
 async function loadAndRender() {
   const patients = await patientDB.getAllPatients();
   for (let i = 0; i < patients.length; i++) {
-    patients[i]._searchIndex = buildPatientSearchIndex(patients[i]);
+    patients[i]._searchTarget = buildPatientSearchText(patients[i]);
+    patients[i]._searchIndex = patients[i]._searchTarget.toLowerCase();
   }
   state.patients = patients;
   updateTabBadges();
@@ -334,76 +430,115 @@ async function loadAndRender() {
 }
 
 /**
- * タブバッジの件数更新
+ * 単一患者の更新をDBに反映し、全件取得なしでUIを即座に再描画
+ */
+async function updateAndRefreshPatient(
+  patient,
+  toastMsg = null,
+  toastType = "success",
+  needBadgeUpdate = false,
+) {
+  refreshPatientSearchIndex(patient);
+  await patientDB.updatePatient(patient);
+  closeAllModals();
+  if (needBadgeUpdate) updateTabBadges();
+  renderPatientList();
+  if (toastMsg) showToast(toastMsg, toastType);
+}
+
+/**
+ * タブバッジの件数更新（高速カウンティング）
  */
 function updateTabBadges() {
-  const counts = { inpatient: 0, outpatient: 0, discharged: 0 };
-  state.patients.forEach((p) => {
-    if (counts[p.status] !== undefined) {
-      counts[p.status]++;
-    }
-  });
+  let inCount = 0;
+  let outCount = 0;
+  let disCount = 0;
+  const list = state.patients;
+  const len = list.length;
+  for (let i = 0; i < len; i++) {
+    const s = list[i].status;
+    if (s === "inpatient") inCount++;
+    else if (s === "outpatient") outCount++;
+    else if (s === "discharged") disCount++;
+  }
 
   const badgeIn = document.getElementById("badge-inpatient");
   const badgeOut = document.getElementById("badge-outpatient");
   const badgeDis = document.getElementById("badge-discharged");
 
-  if (badgeIn) badgeIn.textContent = counts.inpatient;
-  if (badgeOut) badgeOut.textContent = counts.outpatient;
-  if (badgeDis) badgeDis.textContent = counts.discharged;
+  if (badgeIn) badgeIn.textContent = inCount;
+  if (badgeOut) badgeOut.textContent = outCount;
+  if (badgeDis) badgeDis.textContent = disCount;
 }
 
 /**
- * 患者一覧のレンダリング
+ * 患者一覧のレンダリング（単一ループフィルタリングで極小メモリ消費）
  */
 function renderPatientList() {
   const container = document.getElementById("patient-list-container");
   if (!container) return;
 
   const currentTab = state.currentTab;
-  let filtered = state.patients.filter((p) => p.status === currentTab);
+  const searchMatcher = getSearchMatcher(state.filterQuery);
+  const myName = (state.defaultDoctor || "自分").trim().toLowerCase();
+  const filterOnlyMy = state.filterOnlyMy;
+  const filterOnlyExam = state.filterOnlyExam;
+  const filterInvert = state.filterInvert;
 
-  // 1. 検索フィルター（事前キャッシュインデックスを利用した高速AND検索）
-  if (state.filterQuery.trim()) {
-    const keywords = state.filterQuery
-      .trim()
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean);
-    filtered = filtered.filter((p) => {
-      const idx = p._searchIndex || buildPatientSearchIndex(p);
-      return keywords.every((kw) => idx.includes(kw));
-    });
-  }
+  const patients = state.patients;
+  const total = patients.length;
+  const filtered = [];
 
-  // 2. 「担当が自分のみ」フィルター
-  if (state.filterOnlyMy) {
-    const myName = (state.defaultDoctor || "自分").trim().toLowerCase();
-    filtered = filtered.filter((p) => {
+  for (let i = 0; i < total; i++) {
+    const p = patients[i];
+    if (p.status !== currentTab) continue;
+
+    let match = true;
+
+    // 1. 検索フィルター
+    if (searchMatcher) {
+      const target = p._searchTarget || buildPatientSearchText(p);
+      if (!searchMatcher(target)) match = false;
+    }
+
+    // 2. 「担当が自分のみ」フィルター
+    if (match && filterOnlyMy) {
       const doc = (p.doctorInCharge || "").trim().toLowerCase();
-      return (
+      const isMy =
         doc === myName ||
         doc.includes("自分") ||
-        (myName !== "自分" && doc.includes(myName))
-      );
-    });
+        (myName !== "自分" && doc.includes(myName));
+      if (!isMy) match = false;
+    }
+
+    // 3. 「診察予定のみ」フィルター
+    if (match && filterOnlyExam) {
+      if (!p.examPlanned) match = false;
+    }
+
+    // 反転評価
+    if (filterInvert ? !match : match) {
+      filtered.push(p);
+    }
   }
 
-  // 3. 「診察予定のみ」フィルター
-  if (state.filterOnlyExam) {
-    filtered = filtered.filter((p) => !!p.examPlanned);
-  }
-
-  // ソート
+  // ソート（インプレース）
   const sorted = sortPatients(filtered, currentTab);
 
+  // 検索コントロールUI同期
+  updateSearchControlsUI();
+
   if (sorted.length === 0) {
+    const emptyDesc = filterInvert
+      ? "反転表示中: 通常は非表示となる患者はいません（すべての患者が現在の表示条件に合致します）。"
+      : "検索・フィルター条件を見直すか、右上の「＋追加」ボタンから登録してください。";
     container.innerHTML = `
+      ${filterInvert ? renderInvertBanner(0) : ""}
       <div class="empty-state">
         <div class="empty-icon">${getIcon(currentTab)}</div>
         <p class="empty-title">${getTabTitle(currentTab)}の該当患者はいません</p>
-        <p class="empty-desc">検索・フィルター条件を見直すか、右上の「＋追加」ボタンから登録してください。</p>
-        ${state.patients.length === 0
+        <p class="empty-desc">${emptyDesc}</p>
+        ${patients.length === 0
         ? `
           <button type="button" class="btn btn-secondary mt-3" id="btn-load-sample-empty">
             ${getIcon("plus")} サンプルデータを読み込む
@@ -417,15 +552,14 @@ function renderPatientList() {
   }
 
   const today = getTodayString();
-  const todayMidnightMs = new Date(today + "T00:00:00").getTime();
-  let html = "";
+  const todayMidnightMs = getTodayMidnightMs();
+  let html = filterInvert ? renderInvertBanner(sorted.length) : "";
 
   for (let i = 0; i < sorted.length; i++) {
     html += renderPatientCard(sorted[i], currentTab, today, todayMidnightMs);
   }
 
   container.innerHTML = html;
-  // ※カード内イベントは setupEventListeners によるイベント委譲で常時リッスンするため attachCardEvents() は不要
 }
 
 function getTabTitle(tab) {
@@ -444,11 +578,11 @@ function renderPatientCard(patient, tab, today, todayMidnightMs) {
     Boolean(patient.nextPrescriptionDate && patient.nextPrescriptionDate <= today);
   const bowelInfo = calculateBowelDaysAgo(
     patient.lastBowelDate,
-    todayMidnightMs || today,
+    todayMidnightMs,
   );
   const visitInfo =
     tab === "outpatient" && patient.nextVisitDate
-      ? calculateVisitDays(patient.nextVisitDate, todayMidnightMs || today)
+      ? calculateVisitDays(patient.nextVisitDate, todayMidnightMs)
       : null;
 
   // 性別・年齢の表示
@@ -588,11 +722,10 @@ function renderPatientCard(patient, tab, today, todayMidnightMs) {
           <div class="outpatient-visit-row">
             <span class="visit-label"><span class="icon-inline">${getIcon("calendar")}</span>次回診察日:</span>
             <button type="button" class="btn-visit-trigger" data-id="${patient.id}" title="タップで次回診察日を更新">
-              ${
-                patient.nextVisitDate
-                  ? `${formatDateDisplay(patient.nextVisitDate)}${visitInfo ? ` <span class="visit-days-tag ${visitInfo.cls}">${visitInfo.text}</span>` : ""}`
-                  : "未定 (設定する)"
-              }
+              ${patient.nextVisitDate
+        ? `${formatDateDisplay(patient.nextVisitDate)}${visitInfo ? ` <span class="visit-days-tag ${visitInfo.cls}">${visitInfo.text}</span>` : ""}`
+        : "未定 (設定する)"
+      }
             </button>
           </div>
         </section>
@@ -670,9 +803,13 @@ function setupEventListeners() {
       if (target.classList.contains("cb-exam-check")) {
         patient.examPlanned = target.checked;
         await patientDB.updatePatient(patient);
-        const label = target.closest("label");
-        if (label) {
-          label.classList.toggle("active", patient.examPlanned);
+        if (state.filterOnlyExam || state.filterInvert) {
+          renderPatientList();
+        } else {
+          const label = target.closest("label");
+          if (label) {
+            label.classList.toggle("active", patient.examPlanned);
+          }
         }
         showToast(
           `診察予定: ${patient.examPlanned ? "予定あり" : "なし"}に更新`,
@@ -779,6 +916,15 @@ function setupEventListeners() {
         return;
       }
 
+      // 反転表示バナーの解除ボタン
+      const resetInvertBtn = e.target.closest("#btn-reset-invert");
+      if (resetInvertBtn) {
+        state.filterInvert = false;
+        renderPatientList();
+        showToast("通常表示に戻しました", "info");
+        return;
+      }
+
       // 空白時のサンプル読み込みボタン
       const sampleBtn = e.target.closest("#btn-load-sample-empty");
       if (sampleBtn) {
@@ -790,9 +936,9 @@ function setupEventListeners() {
     });
   }
 
-  // タブ切り替え
+  // タブ切り替え（メモリ上の患者リストからゼロ遅延で即座に切り替え）
   document.querySelectorAll(".tab-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
+    btn.addEventListener("click", (e) => {
       const tab = e.currentTarget.dataset.tab;
       if (state.currentTab === tab) return;
 
@@ -802,13 +948,7 @@ function setupEventListeners() {
       e.currentTarget.classList.add("active");
       state.currentTab = tab;
 
-      // タブ切り替え時にも日替わりチェック
-      const res = await patientDB.checkAndPerformDailyReset(getTodayString());
-      if (res.resetOccurred && res.count > 0) {
-        showToast("日替わりリセットが実行されました", "info");
-      }
-
-      await loadAndRender();
+      renderPatientList();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
@@ -871,6 +1011,42 @@ function setupEventListeners() {
         searchInput.value = "";
         state.filterQuery = "";
         renderPatientList();
+      }
+    });
+  }
+
+  // Aチーム検索ボタン（タップで「/A|自分/」を入力して検索）
+  const teamABtn = document.getElementById("btn-search-team-a");
+  if (teamABtn) {
+    teamABtn.addEventListener("click", () => {
+      const searchContainer = document.getElementById("search-container");
+      const toggleSearchBtn = document.getElementById("btn-toggle-search");
+      if (searchContainer && searchContainer.classList.contains("search-collapsed")) {
+        searchContainer.classList.remove("search-collapsed");
+        if (toggleSearchBtn) toggleSearchBtn.classList.add("active");
+      }
+
+      const input = document.getElementById("search-input");
+      const targetQuery = "/A|自分/";
+      if (input) {
+        input.value = targetQuery;
+      }
+      state.filterQuery = targetQuery;
+      renderPatientList();
+      showToast("Aチーム条件 (/A|自分/) を適用しました", "info");
+    });
+  }
+
+  // 検索・フィルター結果の反転ボタン
+  const invertBtn = document.getElementById("btn-filter-invert");
+  if (invertBtn) {
+    invertBtn.addEventListener("click", () => {
+      state.filterInvert = !state.filterInvert;
+      renderPatientList();
+      if (state.filterInvert) {
+        showToast("表示結果を反転しました（非表示カードを表示中）", "info");
+      } else {
+        showToast("通常表示に戻しました", "info");
       }
     });
   }
@@ -990,13 +1166,10 @@ function setupPrescriptionModalEvents() {
       }
 
       patient.nextPrescriptionDate = input.value;
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast(
+      await updateAndRefreshPatient(
+        patient,
         `次回処方日を ${formatDateDisplay(input.value)} に更新しました`,
-        "success",
       );
-      await loadAndRender();
     });
   }
 
@@ -1009,10 +1182,7 @@ function setupPrescriptionModalEvents() {
       const patient = state.prescriptionModalPatient;
       if (!patient) return;
       patient.nextPrescriptionDate = "";
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast("処方日をクリアしました", "info");
-      await loadAndRender();
+      await updateAndRefreshPatient(patient, "処方日をクリアしました", "info");
     });
   }
 }
@@ -1032,7 +1202,7 @@ function openBowelModal(patientId) {
 
   const bowelInfo = calculateBowelDaysAgo(
     patient.lastBowelDate,
-    getTodayString(),
+    getTodayMidnightMs(),
   );
 
   if (title) title.textContent = `最終排便日: ${patient.name}${patient.room ? ` (${patient.room})` : ""}`;
@@ -1075,10 +1245,7 @@ function setupBowelModalEvents() {
       if (!patient || !inputDate) return;
 
       patient.lastBowelDate = inputDate.value;
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast(`最終排便日を更新しました`, "success");
-      await loadAndRender();
+      await updateAndRefreshPatient(patient, "最終排便日を更新しました");
     });
   }
 
@@ -1090,10 +1257,7 @@ function setupBowelModalEvents() {
       if (!patient) return;
 
       patient.lastBowelDate = "";
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast("排便記録をクリアしました", "info");
-      await loadAndRender();
+      await updateAndRefreshPatient(patient, "排便記録をクリアしました", "info");
     });
   }
 }
@@ -1151,15 +1315,12 @@ function setupVisitModalEvents() {
       if (!patient || !input) return;
 
       patient.nextVisitDate = input.value;
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast(
+      await updateAndRefreshPatient(
+        patient,
         patient.nextVisitDate
           ? `次回診察日を ${formatDateDisplay(patient.nextVisitDate)} に更新しました`
           : "次回診察日を更新しました",
-        "success",
       );
-      await loadAndRender();
     });
   }
 
@@ -1171,10 +1332,7 @@ function setupVisitModalEvents() {
       if (!patient) return;
 
       patient.nextVisitDate = "";
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast("次回診察日を未定（空白）にしました", "info");
-      await loadAndRender();
+      await updateAndRefreshPatient(patient, "次回診察日を未定（空白）にしました", "info");
     });
   }
 }
@@ -1223,10 +1381,7 @@ function setupMemoModalEvents() {
       patient.medications = medsInput ? medsInput.value.trim() : "";
       patient.notes = notesInput ? notesInput.value.trim() : "";
 
-      await patientDB.updatePatient(patient);
-      closeAllModals();
-      showToast("処方・備考を更新しました", "success");
-      await loadAndRender();
+      await updateAndRefreshPatient(patient, "処方・備考を更新しました");
     });
   }
 }
@@ -1268,10 +1423,7 @@ async function handleStatusChangeSubmit(e) {
     if (targetStatus === "discharged") {
       patient.dischargedDate = changeDate;
     }
-    await patientDB.updatePatient(patient);
-    closeAllModals();
-    showToast(`「${getTabTitle(targetStatus)}」へ移動しました`, "success");
-    await loadAndRender();
+    await updateAndRefreshPatient(patient, `「${getTabTitle(targetStatus)}」へ移動しました`, "success", true);
   }
 }
 
@@ -1497,30 +1649,48 @@ async function handlePatientFormSubmit(e) {
   }
 
   if (idVal) {
-    // 更新
+    // 編集更新
     patientData.id = Number(idVal);
-    await patientDB.updatePatient(patientData);
-    showToast("患者情報を更新しました", "success");
+    const idx = state.patients.findIndex((p) => p.id === patientData.id);
+    if (idx !== -1) {
+      state.patients[idx] = { ...state.patients[idx], ...patientData };
+      await updateAndRefreshPatient(
+        state.patients[idx],
+        "患者情報を更新しました",
+        "success",
+        true,
+      );
+    } else {
+      await patientDB.updatePatient(patientData);
+      closeAllModals();
+      await loadAndRender();
+    }
   } else {
     // 新規追加
-    await patientDB.addPatient(patientData);
+    const newId = await patientDB.addPatient(patientData);
+    patientData.id = newId;
+    refreshPatientSearchIndex(patientData);
+    state.patients.push(patientData);
+    closeAllModals();
+    updateTabBadges();
+    renderPatientList();
     showToast("新規患者を登録しました", "success");
   }
-
-  closeAllModals();
-  await loadAndRender();
 }
 
 async function handlePatientDelete() {
   if (!state.editingPatient) return;
+  const patient = state.editingPatient;
   const confirmDelete = confirm(
-    `患者「${state.editingPatient.name}」のデータを完全に削除しますか？\n※この操作は取り消せません。`,
+    `患者「${patient.name}」のデータを完全に削除しますか？\n※この操作は取り消せません。`,
   );
   if (confirmDelete) {
-    await patientDB.deletePatient(state.editingPatient.id);
+    await patientDB.deletePatient(patient.id);
+    state.patients = state.patients.filter((p) => p.id !== patient.id);
     closeAllModals();
+    updateTabBadges();
+    renderPatientList();
     showToast("患者データを削除しました", "info");
-    await loadAndRender();
   }
 }
 
@@ -1666,7 +1836,7 @@ function setupSettingsModalEvents() {
 // ユーティリティ
 // ==========================================
 function closeAllModals() {
-  document.querySelectorAll(".modal-overlay").forEach((modal) => {
+  document.querySelectorAll(".modal-overlay.active").forEach((modal) => {
     modal.classList.remove("active");
   });
   state.editingPatient = null;
@@ -1677,17 +1847,24 @@ function closeAllModals() {
   state.statusChangeModalData = null;
 }
 
+const ESCAPE_HTML_MAP = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+const ESCAPE_HTML_REGEX = /[&<>"']/g;
+
 function escapeHtml(str) {
   if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  const s = String(str);
+  return ESCAPE_HTML_REGEX.test(s)
+    ? s.replace(ESCAPE_HTML_REGEX, (ch) => ESCAPE_HTML_MAP[ch])
+    : s;
 }
 
-// グローバルスコープへ公開（HTMLのonclickやコンソールからの直接実行にも対応）
+// グローバルスコープへ公開（コンソールからのデバッグや外部スクリプト連携用）
 window.openPatientModal = openPatientModal;
 window.openSettingsModal = openSettingsModal;
 window.openBowelModal = openBowelModal;
