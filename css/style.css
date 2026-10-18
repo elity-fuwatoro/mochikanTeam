@@ -291,7 +291,7 @@ button, input, select, textarea {
   border-bottom: 1px solid var(--border-color);
   transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
   overflow: hidden;
-  max-height: 60px;
+  max-height: 120px;
   opacity: 1;
 }
 
@@ -347,6 +347,92 @@ button, input, select, textarea {
   padding: 4px;
   display: flex;
   align-items: center;
+}
+
+/* 検索バー下部のアクションボタン行 */
+.search-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 2px;
+}
+
+.btn-search-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1;
+}
+
+.btn-search-pill:hover {
+  background-color: #f1f5f9;
+  color: var(--text-main);
+  border-color: #cbd5e1;
+}
+
+.btn-search-pill.active {
+  background-color: #ccfbf1;
+  color: #0f766e;
+  border-color: #0f766e;
+  font-weight: 600;
+}
+
+.btn-search-pill.btn-invert.active {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border-color: #ef4444;
+  font-weight: 600;
+}
+
+/* 反転表示中の通知バナー */
+.filter-invert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: fadeIn 0.2s ease;
+}
+
+.filter-invert-banner .invert-badge {
+  display: inline-block;
+  background-color: #e11d48;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.filter-invert-banner .btn-invert-reset {
+  background: none;
+  border: none;
+  color: #9f1239;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------
